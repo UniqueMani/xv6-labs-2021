@@ -1,0 +1,21 @@
+Q1: Which other xv6 system call(s) could be made faster using this shared page? Explain how.
+
+A1:
+Besides getpid(), system calls like getppid() and uptime() could also be sped up.
+
+getppid() can be optimized by storing the parent PID in the shared read-only page, so user programs can read it without entering the kernel.
+
+uptime() could be accelerated if the kernel keeps a read-only counter in the shared page that is periodically updated, so user programs don’t need a syscall trap to read it.
+The general idea is that any syscall which only returns read-only kernel data and doesn’t require protection can be optimized this way.
+
+Q2: Explain the output of vmprint in terms of Fig. 3-4 from the text. What does page 0 contain? What is in page 2? When running in user mode, could the process read/write the memory mapped by page 1? What does the third-to-last page contain?
+
+A2:
+
+Page 0 contains the invalid memory region. In xv6, the very first page is kept inaccessible to catch null pointer dereferences.
+
+Page 2 contains the trampoline page (at the top of user address space). This page holds code that enters and exits the kernel during traps, system calls, and interrupts.
+
+Page 1 is the guard page below the user stack. It is mapped but marked inaccessible, so in user mode the process cannot read or write it. Its purpose is to catch stack overflows.
+
+The third-to-last page (just before the guard page and the trampoline) contains the user stack. This is where function calls, local variables, and return addresses are stored while the process is running.
