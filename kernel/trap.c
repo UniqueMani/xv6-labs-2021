@@ -90,19 +90,16 @@ usertrap(void)
       
     if((pte = walk(p->pagetable, va, 0)) == 0)
     {
-      // panic("cowhandler: pte should exist");
       p->killed = 1;
       exit(-1);
     }
     if((*pte & PTE_V) == 0)
     {
-      // panic("cowhandler: page not present");
       p->killed = 1;
       exit(-1);
     }
     if((*pte & PTE_COW) == 0)
     {
-      // panic("cowhandler: page not cow");
       p->killed = 1;
       exit(-1);
     }
@@ -110,19 +107,13 @@ usertrap(void)
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte) | PTE_W;
     flags &= ~(PTE_COW);
-    // printf("cowhandler: scause=%d va=%p pa=%p\n",r_scause(),va,pa);
     if((mem = kalloc()) == 0)
     {
-      // printf("%d: cowhandler: kalloc failed, killed the process\n",p->pid);
       p->killed = 1;
       exit(-1);
     }
-    // printf("%d: cowhandler: kalloc succeeded with pa=%p\n",p->pid,mem);
-    // printf("%d: cowhandler: uvmunmap succeeded with va=%p\n",p->pid,PGROUNDDOWN(va));
     memmove(mem, (char*)pa, PGSIZE);
     uvmunmap(p->pagetable, PGROUNDDOWN(va), 1, 1);
-    // printf("%d: cowhandler: memmove succeeded with from pa=%p to mem=%p\n",p->pid,pa,mem);
-    // if(mappages(p->pagetable, va, PGSIZE, (uint64)mem, flags) != 0){   <-------不知道为啥这个就不行
     if(mappages(p->pagetable, PGROUNDDOWN(va), PGSIZE, (uint64)mem, flags) != 0){
       kfree(mem);
       panic("cowhandler: mappages failed");
