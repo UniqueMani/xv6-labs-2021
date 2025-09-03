@@ -105,7 +105,7 @@ static struct proc*
 allocproc(void)
 {
   struct proc *p;
-
+  
   for(p = proc; p < &proc[NPROC]; p++) {
     acquire(&p->lock);
     if(p->state == UNUSED) {
@@ -140,12 +140,14 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
-
+  p->interval = 0;
+  p->handler = 0;
+  p->passedticks = 0;
+  p->trapframecopy = 0;
   return p;
 }
 
 // free a proc structure and the data hanging from it,
-// including user pages.
 // p->lock must be held.
 static void
 freeproc(struct proc *p)

@@ -37,7 +37,7 @@ void
 usertrap(void)
 {
   int which_dev = 0;
-
+  
   if((r_sstatus() & SSTATUS_SPP) != 0)
     panic("usertrap: not from user mode");
 
@@ -75,7 +75,16 @@ usertrap(void)
 
   if(p->killed)
     exit(-1);
-
+  
+  if(which_dev == 2){   // timer interrupt
+    struct proc *p = myproc();
+    // increase the passed ticks
+    if(p->interval != 0 && ++p->passedticks == p->interval){
+      p->trapframecopy = p->trapframe + 512;
+      memmove(p->trapframecopy,p->trapframe,sizeof(struct trapframe));    // copy trapframe
+      p->trapframe->epc = p->handler;   // execute handler() when return to user space
+    }
+  }
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2)
     yield();

@@ -1,0 +1,7 @@
+When two threads run concurrently, they may both insert into the same bucket at the same time. 
+Thread A reads the current head of the bucket, but before it writes the new element, Thread B 
+also reads the same head and writes its own element. When Thread A resumes and writes its new 
+element, it overwrites the bucket pointer and loses the element inserted by Thread B. 
+
+This race condition cannot happen with one thread, but with two threads the lost updates 
+cause missing keys.
