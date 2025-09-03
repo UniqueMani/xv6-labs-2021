@@ -76,6 +76,14 @@ usertrap(void)
   if(p->killed)
     exit(-1);
 
+  if(which_dev == 2){  
+    struct proc *p = myproc();
+    if(p->interval != 0 && ++p->passedticks == p->interval){
+      p->trapframecopy = p->trapframe + 512;
+      memmove(p->trapframecopy,p->trapframe,sizeof(struct trapframe));   
+      p->trapframe->epc = p->handler;   
+    }
+  }
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2)
     yield();
