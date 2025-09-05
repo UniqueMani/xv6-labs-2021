@@ -11,3 +11,9 @@
 #define NBUF         (MAXOPBLOCKS*3)  // size of disk block cache
 #define FSSIZE       1000  // size of file system in blocks
 #define MAXPATH      128   // maximum file path name
+#define MAP_SHARED   0x01
+#define MAP_PRIVATE  0x02
+#define PROT_READ    0x1
+#define PROT_WRITE   0x2
+#define PROT_EXEC    0x4
+#define PROT_NONE    0x0

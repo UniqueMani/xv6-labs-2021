@@ -25,7 +25,23 @@ extern char trampoline[]; // trampoline.S
 // memory model when using p->parent.
 // must be acquired before any p->lock.
 struct spinlock wait_lock;
+struct vma vma_list[NVMA];
 
+struct vma* vma_alloc() 
+{
+  for(int i = 0; i < NVMA; i++)
+  {
+    acquire(&vma_list[i].lock);
+    if (vma_list[i].length == 0)
+    {
+      return &vma_list[i];
+    } else 
+    {
+      release(&vma_list[i].lock);
+    }
+  }
+  panic("no free vma");
+}
 // Allocate a page for each process's kernel stack.
 // Map it high in memory, followed by an invalid
 // guard page.
@@ -313,8 +329,34 @@ fork(void)
 
   acquire(&np->lock);
   np->state = RUNNABLE;
+  np->vma = 0;
+  struct vma *pvma = p->vma;
+  struct vma *pre = 0;
+  while (pvma)
+  {
+    struct vma *nvma = vma_alloc();
+    nvma->start = pvma->start;
+    nvma->end = pvma->end;
+    nvma->off = pvma->off;
+    nvma->length = pvma->length;
+    nvma->perm = pvma->perm;
+    nvma->flags = pvma->flags;
+    nvma->file = pvma->file;
+    filedup(nvma->file);
+    nvma->next = 0;
+    if (pre == 0)
+    {
+      np->vma = nvma;
+    }
+    else
+    {
+      pre->next = nvma;
+    }
+    pre = nvma;
+    release(&nvma->lock);
+    pvma = pvma->next;
+  }
   release(&np->lock);
-
   return pid;
 }
 
@@ -343,6 +385,22 @@ exit(int status)
 
   if(p == initproc)
     panic("init exiting");
+
+  // mUnmap all vma
+  struct vma *v = p->vma;
+  struct vma *pvma;
+  while (v)
+  {
+    write_back(v, v->start, v->length);
+    uvmunmap(p->pagetable, v->start, PGROUNDUP(v->length) / PGSIZE, 1);
+    fileclose(v->file);
+    pvma = v->next;
+    acquire(&v->lock);
+    v->next = 0;
+    v->length = 0;
+    release(&v->lock);
+    v = pvma;
+  }
 
   // Close all open files.
   for(int fd = 0; fd < NOFILE; fd++){

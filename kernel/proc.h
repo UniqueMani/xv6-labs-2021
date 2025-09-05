@@ -17,6 +17,23 @@ struct context {
   uint64 s10;
   uint64 s11;
 };
+#define NVMA 16
+#define VMA_START (MAXVA >> 1)
+
+struct vma {
+  uint64 start;
+  uint64 end;
+  uint64 length; // 0 -> not used
+  uint64 off;
+
+  int perm;
+  int flags;
+  struct file *file;
+  struct vma *next;
+
+  struct spinlock lock;
+};
+
 
 // Per-CPU state.
 struct cpu {
@@ -85,7 +102,7 @@ enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 // Per-process state
 struct proc {
   struct spinlock lock;
-
+  struct vma *vma;             // VMA item
   // p->lock must be held when using these:
   enum procstate state;        // Process state
   void *chan;                  // If non-zero, sleeping on chan

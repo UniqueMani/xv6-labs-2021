@@ -5,6 +5,9 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#include "spinlock.h"
+#include "proc.h"
+#include "file.h"
 
 /*
  * the kernel's page table.
@@ -15,6 +18,70 @@ extern char etext[];  // kernel.ld sets this to end of kernel code.
 
 extern char trampoline[]; // trampoline.S
 
+int mmap_alloc(uint64 va, int scause)
+{
+  struct proc *p = myproc();
+  struct vma* v = p->vma;
+
+  while(v != 0)
+  {
+    if (va >= v->start && va < v->end)
+    {
+      break;
+    }
+    v = v->next;
+  }
+
+  if (v == 0) 
+    return -1; 
+  if (scause == 13 && !(v->perm & PTE_R)) 
+    return -1; 
+  if (scause == 15 && !(v->perm & PTE_W)) 
+    return -1;
+  
+  // load from file
+  va = PGROUNDDOWN(va);
+  char* mmem = kalloc();
+  if (mmem == 0) 
+    return -1;
+  memset(mmem, 0, PGSIZE);
+
+  if (mappages(p->pagetable, va, PGSIZE, (uint64)mmem, v->perm) != 0)
+  {
+    kfree(mmem);
+    return -1;
+  }
+
+  struct file *f = v->file;
+  ilock(f->ip);
+  readi(f->ip, 0, (uint64)mmem, v->off + va - v->start, PGSIZE);
+  iunlock(f->ip);
+  return 0;
+}
+
+void write_back(struct vma *v, uint64 addr, int n)
+{
+  // no need to writeback
+  if (!(v->perm & PTE_W) || (v->flags & MAP_PRIVATE))
+    return;
+  if ((addr % PGSIZE) != 0)
+    panic("unmap: not aligned");
+  struct file *f = v->file;
+  int max = ((MAXOPBLOCKS - 1 - 1 - 2) / 2) * BSIZE;
+  int i = 0;
+  while (i < n)
+  {
+    int k = n - i;
+    if (k > max)
+      k = max;
+    begin_op();
+    ilock(f->ip);
+    int wcnt = writei(f->ip, 1, addr + i, v->off + v->start - addr + i, k);
+    iunlock(f->ip);
+    end_op();
+    i += wcnt;
+  }
+}
 // Make a direct-map page table for the kernel.
 pagetable_t
 kvmmake(void)
@@ -173,9 +240,11 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
 
   for(a = va; a < va + npages*PGSIZE; a += PGSIZE){
     if((pte = walk(pagetable, a, 0)) == 0)
-      panic("uvmunmap: walk");
+      //panic("uvmunmap: walk");
+      continue;
     if((*pte & PTE_V) == 0)
-      panic("uvmunmap: not mapped");
+      //panic("uvmunmap: not mapped");
+      continue;
     if(PTE_FLAGS(*pte) == PTE_V)
       panic("uvmunmap: not a leaf");
     if(do_free){
@@ -275,7 +344,8 @@ freewalk(pagetable_t pagetable)
       freewalk((pagetable_t)child);
       pagetable[i] = 0;
     } else if(pte & PTE_V){
-      panic("freewalk: leaf");
+      //panic("freewalk: leaf");
+      continue;
     }
   }
   kfree((void*)pagetable);
